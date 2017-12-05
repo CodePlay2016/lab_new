@@ -162,7 +162,6 @@ def make_raw_dataset(filepath, targetpath,
     if not os.path.exists(targetpath):
         os.system('mkdir '+targetpath)
     file_list = glob.glob(filepath + '*.mat')
-    list.sort(file_list)
     file_num = 0
     if trainset:
         
@@ -276,9 +275,9 @@ def make_cwt_dataset(filepath, targetpath):
 
 def main():
 #    cwt_filepath = "/home/codeplay2017/code/lab/code/paper/realwork/image/cwt_5speeds_step1/"
-    raw_filepath = "/home/codeplay2017/code/lab/code/paper/realwork/image/wen_data/raw_divided/time_series_step1_2048_5speeds/"
+    raw_filepath = "/home/codeplay2017/code/lab/code/paper/realwork/image/wen_data/raw_divided/angle_series_step1_2048_5speeds/"
 #    cwt_targetpath = "../resources/py2/data4cwt_50Hz_256x256_step1/"
-    raw_targetpath = "/home/codeplay2017/code/lab/code/paper/realwork/python/resources/py2/data4raw_5speeds_2048_step1/"
+    raw_targetpath = "/home/codeplay2017/code/lab/code/paper/realwork/python/resources/py2/data4angle_5speeds_2048_step1/local_normalized/"
 #    make_cwt_dataset(cwt_filepath)
     make_raw_dataset(raw_filepath, raw_targetpath, fft=False, trainset=True, mirror=False)
     

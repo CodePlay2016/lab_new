@@ -25,11 +25,11 @@ FLAGS = None
 
 
 #####-----------hyper parameters---------------------
-NUM_ITERATION = 100000 # number of iterations
+NUM_ITERATION = 50000 # number of iterations
 TRAIN_BATCH_SIZE = 1000
 VALID_BATCH_SIZE = 700
 
-LEARNING_RATE = 1e-6
+LEARNING_RATE = 1e-4
 BN_EPSILON = 1e-3 # learning rate for batch normalization
 
 ## define thresholds to stop training
@@ -190,11 +190,13 @@ def load_data():
     trainset = ImgDataSet()
     testset = ImgDataSet()
 #    data_num = str(8)
-    num_trainfile = 75
+    train_speed = 30
+    num_trainfile = 15
     num_testfile = 1
     for ii in range(num_trainfile):
 #        data_path = os.path.join(FLAGS.buckets,'input_data_cwt_0-50_'+str(ii+1)+'.pkl')
-        data_path = os.path.join(FLAGS.buckets,'input_data_'+str(ii+1)+'.pkl')
+        file_index = int(ii//5*25 + (train_speed/2-ii%5))
+        data_path = os.path.join(FLAGS.buckets,'input_data_'+str(file_index)+'.pkl')
         with tf.gfile.GFile(data_path, 'rb') as f:
             data = pickle.load(f)
         trainset.join_data(data)
@@ -265,27 +267,11 @@ def main(_): # _ means the last param
         loss_this = 10 # give a initial loss
         curve_list = [[],[],[]]
         is_loss_decrease = False
+        is_loss_min = False
         save_count = 0
         for i in range(NUM_ITERATION+1):
             train_batch, is_tepoch_over = trainset.next_batch(TRAIN_BATCH_SIZE)
             valid_batch, is_vepoch_over = testset.next_batch(VALID_BATCH_SIZE)
-            
-            ## early stop
-            loss_last = loss_this
-            loss_this = cross_entropy.eval(feed_dict={
-                    x: train_batch[0], y_: train_batch[1],
-                    keep_prob: 1.0, is_training: False})
-            is_loss_min = True if (loss_this>loss_last and is_loss_decrease) else False
-            is_loss_decrease = True if loss_last>loss_this else False
-            
-            if (np.abs(valid_accuracy_average - ACCURACY_THRESHOLD) < 0.01 or
-                (loss_this < LOSS_THRESHOLD and is_loss_min)):
-                saver.save(sess=sess, save_path=model_path)
-                save_count += 1
-                print('model saved')
-            else:
-                train_step.run(feed_dict={x: train_batch[0], y_: train_batch[1],
-                                      keep_prob: 0.5, is_training: True})
             
             if i and i % 100 == 0: # and show
                 train_accuracy = accuracy.eval(feed_dict={
@@ -312,7 +298,6 @@ def main(_): # _ means the last param
                 curve_list[1].append(valid_accuracy)
                 curve_list[2].append(valid_accuracy_average)
                 print(msg)
-                
             if np.abs(valid_accuracy_average - ACCURACY_THRESHOLD) >= 0.01:
                 train_step.run(feed_dict={x: train_batch[0], y_: train_batch[1],
                                           keep_prob: 0.5, is_training: True})

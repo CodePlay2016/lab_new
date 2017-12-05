@@ -18,29 +18,12 @@ from __future__ import unicode_literals
 
 import tensorflow as tf
 import numpy as np
+import tempfile
 import pickle, time, os, argparse
 
 FLAGS = None
-#####-----------structure parameters-----------------
-
-
-#####-----------hyper parameters---------------------
-NUM_ITERATION = 100000 # number of iterations
-TRAIN_BATCH_SIZE = 1000
-VALID_BATCH_SIZE = 700
-
-LEARNING_RATE = 1e-6
-BN_EPSILON = 1e-3 # learning rate for batch normalization
-
-## define thresholds to stop training
-ACCURACY_THRESHOLD = 1.0
-LOSS_THRESHOLD = 0.5
-
-
-
-#####------------------------------------------------
-
-
+BN_count = 0
+BN_count_0 = 0
 
 def deepnn(x, is_training):
     """deepnn builds the graph for a deep net for classifying digits.
@@ -57,30 +40,23 @@ def deepnn(x, is_training):
     # Last dimension is for "features" - there is only one here, since images are
     # grayscale -- it would be 3 for an RGB image, 4 for RGBA, etc.
     with tf.name_scope('reshape'):
-        x_image = tf.reshape(x, [-1, 2048,1, 1])
-        # show the image in tensorboard.
-        # third argument is max shown num
+        x_image = tf.reshape(x, [-1, 1024,1, 1])
 
     # First convolutional layer - maps one grayscale image to 5 feature maps.
     # The third dimension of W is number of input channels, the last is the 
     # number of output channels
-#    is_training = tf.equal(is_training_num, 1)
     with tf.name_scope('conv1'):
         num_feature1 = 20
-        W_conv1 = weight_variable([64, 1, 1, num_feature1])
+        W_conv1 = weight_variable([16, 1, 1, num_feature1])
         b_conv1 = bias_variable([num_feature1])
         BN_conv1 = batch_normalization(
-                tf.nn.conv2d(x_image, W_conv1, strides=[1, 16, 1, 1],
+                tf.nn.conv2d(x_image, W_conv1, strides=[1, 1, 1, 1],
                              padding='SAME') + b_conv1, is_training=is_training)
         h_conv1 = tf.nn.relu(BN_conv1)
-#       layer_image1 = tf.transpose(h_conv1, perm=[3,1,2,0])
-#       tf.summary.image('conv2',
-#                     layer_image1[:,:,:,-1].reshape([num_feature1,200,240,1]),
-#                     max_outputs=num_feature1/2)
+
   # Pooling layer - downsamples by 2X.
     with tf.name_scope('pool1'):
         h_pool1 = max_pool(h_conv1)
-#    tf.summary.image('pool1', h_pool1)
 
   # Second convolutional layer -- maps 5 feature maps to 5
     with tf.name_scope('conv2'):
@@ -102,30 +78,19 @@ def deepnn(x, is_training):
         BN_conv3 = batch_normalization(
                 conv2d(h_pool2, W_conv3) + b_conv3, is_training=is_training)
         h_conv3 = tf.nn.relu(BN_conv3)
-        
+
+  # Second pooling layer.
     with tf.name_scope('pool3'):
         h_pool3 = max_pool(h_conv3)
-        
-    with tf.name_scope('conv4'):
-        num_feature4 = 40
-        W_conv4 = weight_variable([5, 1, num_feature3, num_feature4])
-        b_conv4 = bias_variable([num_feature4])
-        BN_conv4 = batch_normalization(
-                conv2d(h_pool3, W_conv4) + b_conv4, is_training=is_training)
-        h_conv4 = tf.nn.relu(BN_conv4)
-        
-  # Second pooling layer.
-    with tf.name_scope('pool4'):
-        h_pool4 = max_pool(h_conv4)
         
   # Fully connected layer 1 -- after 2 round of downsampling, our 300x200 image
   # is down to 75x50x64 feature maps -- maps this to 256 features.
     with tf.name_scope('fc1'):
         out_size = 2048
-        W_fc1 = weight_variable([8 * num_feature4, out_size])
+        W_fc1 = weight_variable([128 * num_feature3, out_size])
         b_fc1 = bias_variable([out_size])
     
-        h_pool2_flat = tf.reshape(h_pool4, [-1, 8*num_feature4])
+        h_pool2_flat = tf.reshape(h_pool3, [-1, 128*num_feature3])
         BN_fc1 = batch_normalization(
                 tf.matmul(h_pool2_flat, W_fc1) + b_fc1, is_training=is_training)
         h_fc1 = tf.nn.relu(BN_fc1)
@@ -148,6 +113,7 @@ def deepnn(x, is_training):
 def conv2d(x, W):
     """conv2d returns a 2d convolution layer with full stride."""
     return tf.nn.conv2d(x, W, strides=[1, 1, 1, 1], padding='SAME')
+    # notice this "SAME" param makes the conved image size the same as the original
 
 def max_pool(x):
     """max_pool_2x2 downsamples a feature map by 2X."""
@@ -165,7 +131,7 @@ def bias_variable(shape, name=None):
     return tf.Variable(initial)
 
 # if wanna change version of this function, see utils/batch_normalizations.py
-def batch_normalization(inputs, is_training, epsilon = BN_EPSILON, mode="extractable"):
+def batch_normalization(inputs, is_training, epsilon = 0.001, mode="extractable"):
     # inputs should have the shape of (batch_size, width, length, channels)
 #    out_size = inputs.shape[-1]
     shape = [int(ii) for ii in list(inputs.get_shape()[1:])]
@@ -190,18 +156,18 @@ def load_data():
     trainset = ImgDataSet()
     testset = ImgDataSet()
 #    data_num = str(8)
-    num_trainfile = 75
+    num_trainfile = 15
     num_testfile = 1
     for ii in range(num_trainfile):
 #        data_path = os.path.join(FLAGS.buckets,'input_data_cwt_0-50_'+str(ii+1)+'.pkl')
-        data_path = os.path.join(FLAGS.buckets,'input_data_'+str(ii+1)+'.pkl')
+        data_path = os.path.join(FLAGS.buckets,'0-50/input_data_'+str(ii+1)+'.pkl')
         with tf.gfile.GFile(data_path, 'rb') as f:
             data = pickle.load(f)
         trainset.join_data(data)
     for ii in range(num_testfile):
 #        resource_path = FLAGS.buckets
 #        data_path = os.path.join(resource_path.replace('step_2400','step20_test'),'input_data_t_'+str(ii+1)+'.pkl')
-        data_path = os.path.join(FLAGS.buckets,'input_data_t.pkl')
+        data_path = os.path.join(FLAGS.buckets,'30-0/input_data_t.pkl')
         with tf.gfile.GFile(data_path, 'rb') as f:
             data = pickle.load(f)
         testset.join_data(data)
@@ -215,7 +181,7 @@ def main(_): # _ means the last param
   
     print("constructing graph..")
   # Create the model
-    x = tf.placeholder(tf.float32, [None, 2048])
+    x = tf.placeholder(tf.float32, [None, 1024])
     y_ = tf.placeholder(tf.float32, [None, 3])
     is_training = tf.placeholder(tf.bool)
 
@@ -229,18 +195,17 @@ def main(_): # _ means the last param
         tf.summary.scalar('loss-cross_entropy', cross_entropy)
 
     with tf.name_scope('adam_optimizer'):
-        train_step = tf.train.AdamOptimizer(LEARNING_RATE).minimize(cross_entropy)
+        train_step = tf.train.AdamOptimizer(1e-4).minimize(cross_entropy)
 
     with tf.name_scope('accuracy'):
         correct_prediction = tf.equal(tf.argmax(y_conv, 1), tf.argmax(y_, 1))
         correct_prediction = tf.cast(correct_prediction, tf.float32)
     accuracy = tf.reduce_mean(correct_prediction)
-    tf.summary.scalar('accuracy', accuracy)
 
-#    graph_location = tempfile.mkdtemp()
-#    print('Saving graph to: %s' % graph_location)
-#    train_writer = tf.summary.FileWriter(graph_location)
-#    train_writer.add_graph(tf.get_default_graph())
+    graph_location = tempfile.mkdtemp()
+    print('Saving graph to: %s' % graph_location)
+    train_writer = tf.summary.FileWriter(graph_location)
+    train_writer.add_graph(tf.get_default_graph())
     
     # Import data
     trainset, testset = load_data() 
@@ -250,43 +215,24 @@ def main(_): # _ means the last param
         print(time_info)
         output_dir = FLAGS.checkpointDir+time_info+'/'
         model_path = os.path.join(output_dir, 'model.ckpt')
-        summary_path = os.path.join(output_dir, 'summary/')
         print('model is saved to:'+model_path)
-        merged_summary = tf.summary.merge_all()
-        train_summary_writer = tf.summary.FileWriter(summary_path+'train/',
-                                                     sess.graph)
-        test_summary_writer = tf.summary.FileWriter(summary_path+'test/')
+#        merged_summary = tf.summary.merge_all()
+#        summary_writer = tf.summary.FileWriter(logdir=summary_path)
         sess.run(tf.global_variables_initializer())
     
         saver = tf.train.Saver()
     
         valid_accuracy_list = []
         valid_accuracy_average = 0
-        loss_this = 10 # give a initial loss
         curve_list = [[],[],[]]
-        is_loss_decrease = False
-        save_count = 0
-        for i in range(NUM_ITERATION+1):
-            train_batch, is_tepoch_over = trainset.next_batch(TRAIN_BATCH_SIZE)
-            valid_batch, is_vepoch_over = testset.next_batch(VALID_BATCH_SIZE)
-            
-            ## early stop
-            loss_last = loss_this
-            loss_this = cross_entropy.eval(feed_dict={
-                    x: train_batch[0], y_: train_batch[1],
-                    keep_prob: 1.0, is_training: False})
-            is_loss_min = True if (loss_this>loss_last and is_loss_decrease) else False
-            is_loss_decrease = True if loss_last>loss_this else False
-            
-            if (np.abs(valid_accuracy_average - ACCURACY_THRESHOLD) < 0.01 or
-                (loss_this < LOSS_THRESHOLD and is_loss_min)):
-                saver.save(sess=sess, save_path=model_path)
-                save_count += 1
-                print('model saved')
-            else:
-                train_step.run(feed_dict={x: train_batch[0], y_: train_batch[1],
-                                      keep_prob: 0.5, is_training: True})
-            
+        for i in range(100001):
+            # if i > 1000: break
+            train_batch, is_tepoch_over = trainset.next_batch(500)
+            valid_batch, is_vepoch_over = testset.next_batch(100)
+            # show = False
+            # if is_tepoch_over: 
+                # i += 1
+                # show = True
             if i and i % 100 == 0: # and show
                 train_accuracy = accuracy.eval(feed_dict={
                         x: train_batch[0], y_: train_batch[1],
@@ -294,28 +240,23 @@ def main(_): # _ means the last param
                 valid_accuracy = accuracy.eval(feed_dict={
                         x: valid_batch[0], y_: valid_batch[1],
                         keep_prob: 1.0, is_training: False})
-                train_summary = sess.run(merged_summary, feed_dict={
-                        x: train_batch[0], y_: train_batch[1],
-                        keep_prob: 1.0, is_training:False})
-                test_summary = sess.run(merged_summary, feed_dict={
-                        x: valid_batch[0], y_: valid_batch[1],
-                        keep_prob: 1.0, is_training:False})
-                train_summary_writer.add_summary(train_summary, i)
-                test_summary_writer.add_summary(test_summary, i)
+#                summary,_ = sess.run([merged_summary], feed_dict={
+#                        x: valid_batch[0], y_: valid_batch[1], keep_prob: 1.0})
+#                summary_writer.add_summary(summary, i)
 #        
                 valid_accuracy_list.append(valid_accuracy)
                 valid_accuracy_average = sum(valid_accuracy_list)/len(valid_accuracy_list) if len(valid_accuracy_list)<10 else sum(valid_accuracy_list[-10:])/10
-                msg = 'step |%d|, train accuracy |%.2g|, valid |%.3g|, average for last 10 valid |%.4g|' % (
+                msg = 'step |%d|, train accuracy |%.2g|, valid |%.4g|, average for last 10 valid |%.4g|' % (
                         i, train_accuracy, valid_accuracy, valid_accuracy_average)
         
                 curve_list[0].append(train_accuracy)
                 curve_list[1].append(valid_accuracy)
                 curve_list[2].append(valid_accuracy_average)
                 print(msg)
-                
-            if np.abs(valid_accuracy_average - ACCURACY_THRESHOLD) >= 0.01:
+            if np.abs(valid_accuracy_average - 1) >= 0.01:
                 train_step.run(feed_dict={x: train_batch[0], y_: train_batch[1],
-                                          keep_prob: 0.5, is_training: True})
+                                      keep_prob: 0.5, is_training: True})
+            
     
         # save the trained model
         saver.save(sess=sess, save_path=model_path)

@@ -29,7 +29,7 @@ NUM_ITERATION = 100000 # number of iterations
 TRAIN_BATCH_SIZE = 1000
 VALID_BATCH_SIZE = 700
 
-LEARNING_RATE = 1e-6
+LEARNING_RATE = 1e-4
 BN_EPSILON = 1e-3 # learning rate for batch normalization
 
 ## define thresholds to stop training
@@ -312,10 +312,7 @@ def main(_): # _ means the last param
                 curve_list[1].append(valid_accuracy)
                 curve_list[2].append(valid_accuracy_average)
                 print(msg)
-                
-            if np.abs(valid_accuracy_average - ACCURACY_THRESHOLD) >= 0.01:
-                train_step.run(feed_dict={x: train_batch[0], y_: train_batch[1],
-                                          keep_prob: 0.5, is_training: True})
+            
     
         # save the trained model
         saver.save(sess=sess, save_path=model_path)

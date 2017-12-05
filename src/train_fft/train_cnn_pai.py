@@ -47,7 +47,7 @@ def deepnn(x, is_training):
     # number of output channels
     with tf.name_scope('conv1'):
         num_feature1 = 20
-        W_conv1 = weight_variable([10, 1, 1, num_feature1])
+        W_conv1 = weight_variable([16, 1, 1, num_feature1])
         b_conv1 = bias_variable([num_feature1])
         BN_conv1 = batch_normalization(
                 tf.nn.conv2d(x_image, W_conv1, strides=[1, 1, 1, 1],
@@ -156,8 +156,8 @@ def load_data():
     trainset = ImgDataSet()
     testset = ImgDataSet()
 #    data_num = str(8)
-    num_trainfile = 75
-    num_testfile = 15
+    num_trainfile = 15
+    num_testfile = 1
     for ii in range(num_trainfile):
 #        data_path = os.path.join(FLAGS.buckets,'input_data_cwt_0-50_'+str(ii+1)+'.pkl')
         data_path = os.path.join(FLAGS.buckets,'input_data_'+str(ii+1)+'.pkl')
@@ -167,7 +167,7 @@ def load_data():
     for ii in range(num_testfile):
 #        resource_path = FLAGS.buckets
 #        data_path = os.path.join(resource_path.replace('step_2400','step20_test'),'input_data_t_'+str(ii+1)+'.pkl')
-        data_path = os.path.join(FLAGS.buckets,'input_data_t_'+str(ii+1)+'.pkl')
+        data_path = os.path.join(FLAGS.buckets,'input_data_t1.pkl')
         with tf.gfile.GFile(data_path, 'rb') as f:
             data = pickle.load(f)
         testset.join_data(data)

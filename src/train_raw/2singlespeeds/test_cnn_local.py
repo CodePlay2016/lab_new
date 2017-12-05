@@ -22,7 +22,7 @@ import scipy.io as sio
 import os, glob, pickle
 import matplotlib.pyplot as plt
 from PIL import Image
-from make_data_pai import ImgDataSet
+import make_data_pai as md
 #import matplotlib as mp
 
 FLAGS = None
@@ -42,17 +42,17 @@ def deepnn(x, is_training):
     # Last dimension is for "features" - there is only one here, since images are
     # grayscale -- it would be 3 for an RGB image, 4 for RGBA, etc.
     with tf.name_scope('reshape'):
-        x_image = tf.reshape(x, [-1, 1024,1, 1])
+        x_image = tf.reshape(x, [-1, 2048,1, 1])
 
     # First convolutional layer - maps one grayscale image to 5 feature maps.
     # The third dimension of W is number of input channels, the last is the 
     # number of output channels
     with tf.name_scope('conv1'):
         num_feature1 = 20
-        W_conv1 = weight_variable([16, 1, 1, num_feature1])
+        W_conv1 = weight_variable([64, 1, 1, num_feature1])
         b_conv1 = bias_variable([num_feature1])
         BN_conv1 = batch_normalization(
-                tf.nn.conv2d(x_image, W_conv1, strides=[1, 1, 1, 1],
+                tf.nn.conv2d(x_image, W_conv1, strides=[1, 16, 1, 1],
                              padding='SAME') + b_conv1, is_training=is_training)
         h_conv1 = tf.nn.relu(BN_conv1)
 
@@ -85,14 +85,26 @@ def deepnn(x, is_training):
     with tf.name_scope('pool3'):
         h_pool3 = max_pool(h_conv3)
         
+    with tf.name_scope('conv4'):
+        num_feature4 = 40
+        W_conv4 = weight_variable([5, 1, num_feature3, num_feature4])
+        b_conv4 = bias_variable([num_feature4])
+        BN_conv4 = batch_normalization(
+                conv2d(h_pool3, W_conv4) + b_conv4, is_training=is_training)
+        h_conv4 = tf.nn.relu(BN_conv4)
+        
+  # Second pooling layer.
+    with tf.name_scope('pool4'):
+        h_pool4 = max_pool(h_conv4)
+        
   # Fully connected layer 1 -- after 2 round of downsampling, our 300x200 image
   # is down to 75x50x64 feature maps -- maps this to 256 features.
     with tf.name_scope('fc1'):
         out_size = 2048
-        W_fc1 = weight_variable([128 * num_feature3, out_size])
+        W_fc1 = weight_variable([8 * num_feature4, out_size])
         b_fc1 = bias_variable([out_size])
     
-        h_pool2_flat = tf.reshape(h_pool3, [-1, 128*num_feature3])
+        h_pool2_flat = tf.reshape(h_pool4, [-1, 8*num_feature4])
         BN_fc1 = batch_normalization(
                 tf.matmul(h_pool2_flat, W_fc1) + b_fc1, is_training=is_training)
         h_fc1 = tf.nn.relu(BN_fc1)
@@ -153,9 +165,9 @@ def batch_normalization(inputs, is_training, epsilon = 0.001, mode="extractable"
         
     return tf.nn.batch_normalization(inputs, mean, var, beta, scale, epsilon)
 
-source_dir = '/home/codeplay2017/code/lab/code/paper/realwork/python/observation/171108/step2400_30-0/original/'
+source_dir = '/home/codeplay2017/code/lab/code/paper/realwork/image/wen_data/raw_divided/time_series_step1_2048_5speeds/'
 out_dir = '/home/codeplay2017/code/lab/code/paper/realwork/python/'
-model_path = os.path.join(out_dir, 'observation/171122/fft_1024_5speeds_step1/exp1/model.ckpt')
+model_path = os.path.join(out_dir, 'observation/171206/train1speedtestanother/2017-12-05_10:19:19/model.ckpt')
 
 def main(): # _ means the last param
   # obersavation test  
@@ -164,25 +176,39 @@ def main(): # _ means the last param
     # Import data
     
     # Create the model
-    x = tf.placeholder(tf.float32, [None, 1024])
+    x = tf.placeholder(tf.float32, [None, 2048])
     y_ = tf.placeholder(tf.float32, [None, 3])
     is_training = tf.placeholder(tf.bool)
     y_conv, keep_prob = deepnn(x, is_training) # result_show:[h_conv1, h_pool1, h_conv2, h_pool2] 
-#    with tf.name_scope('accuracy'):
-#        correct_prediction = tf.equal(tf.argmax(y_conv, 1), tf.argmax(y_, 1))
-#        correct_prediction = tf.cast(correct_prediction, tf.float32)
-#    accuracy = tf.reduce_mean(correct_prediction)
-#    f_list = glob.glob(source_dir+'*.png')
+    with tf.name_scope('accuracy'):
+        correct_prediction = tf.equal(tf.argmax(y_conv, 1), tf.argmax(y_, 1))
+        correct_prediction = tf.cast(correct_prediction, tf.float32)
+    accuracy = tf.reduce_mean(correct_prediction)
+
+    ### load data
+    flist = glob.glob(source_dir+'*-10,*.mat')
+    ### begin test
     
-#    with open(out_dir+'resources/py3/data4fft_5speeds_1024_step1/input_data_t.pkl', 'rb') as f:
-#        test_set = pickle.load(f)
-#    predict(test_set, accuracy, model_path)
-    #1.load raw data
-    
-    #2.fft(raw data)
-    
-    #3. 
-            
+    with tf.Session() as sess:
+        #1.load raw data
+        saver = tf.train.Saver()
+        saver.restore(sess, model_path)
+        correct = 0
+        count = 0
+        for file in flist:
+            (matdata, data_type, source_type,
+             speed, num_of_data, length) = md.prepare_data(file, fft=False, mirror=False)
+        #2.test(raw data)
+            for ii in range(1000):
+                count += 1
+                test = matdata[ii,:]
+                test_accuracy = accuracy.eval(feed_dict={
+                        x: test.reshape(1,2048), y_: np.array(data_type).reshape(1,3),
+                        keep_prob: 1.0, is_training: False})
+                correct += test_accuracy
+                
+        #3. 
+        print(correct/count)
             
 
 

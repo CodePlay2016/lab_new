@@ -18,7 +18,6 @@ Created on Sun Sep 10 10:31:06 2017
 
 import tensorflow as tf
 import numpy as np
-import scipy.io as sio
 import os, glob, pickle
 import matplotlib.pyplot as plt
 from PIL import Image
@@ -38,29 +37,21 @@ def deepnn(x, is_training):
             digits 0-9). keep_prob is a scalar placeholder for the probability of
             dropout.
     """
-    # Reshape to use within a convolutional neural net.
-    # Last dimension is for "features" - there is only one here, since images are
-    # grayscale -- it would be 3 for an RGB image, 4 for RGBA, etc.
     with tf.name_scope('reshape'):
         x_image = tf.reshape(x, [-1, 1024,1, 1])
 
-    # First convolutional layer - maps one grayscale image to 5 feature maps.
-    # The third dimension of W is number of input channels, the last is the 
-    # number of output channels
     with tf.name_scope('conv1'):
         num_feature1 = 20
-        W_conv1 = weight_variable([16, 1, 1, num_feature1])
+        W_conv1 = weight_variable([10, 1, 1, num_feature1])
         b_conv1 = bias_variable([num_feature1])
         BN_conv1 = batch_normalization(
                 tf.nn.conv2d(x_image, W_conv1, strides=[1, 1, 1, 1],
                              padding='SAME') + b_conv1, is_training=is_training)
         h_conv1 = tf.nn.relu(BN_conv1)
 
-  # Pooling layer - downsamples by 2X.
     with tf.name_scope('pool1'):
         h_pool1 = max_pool(h_conv1)
 
-  # Second convolutional layer -- maps 5 feature maps to 5
     with tf.name_scope('conv2'):
         num_feature2 = 40
         W_conv2 = weight_variable([5, 1, num_feature1, num_feature2])
@@ -69,7 +60,6 @@ def deepnn(x, is_training):
                 conv2d(h_pool1, W_conv2) + b_conv2, is_training=is_training)
         h_conv2 = tf.nn.relu(BN_conv2)
 
-  # Second pooling layer.
     with tf.name_scope('pool2'):
         h_pool2 = max_pool(h_conv2)
         
@@ -81,12 +71,9 @@ def deepnn(x, is_training):
                 conv2d(h_pool2, W_conv3) + b_conv3, is_training=is_training)
         h_conv3 = tf.nn.relu(BN_conv3)
 
-  # Second pooling layer.
     with tf.name_scope('pool3'):
         h_pool3 = max_pool(h_conv3)
         
-  # Fully connected layer 1 -- after 2 round of downsampling, our 300x200 image
-  # is down to 75x50x64 feature maps -- maps this to 256 features.
     with tf.name_scope('fc1'):
         out_size = 2048
         W_fc1 = weight_variable([128 * num_feature3, out_size])
@@ -132,10 +119,11 @@ def bias_variable(shape, name=None):
     initial = tf.constant(0.1, shape=shape)
     return tf.Variable(initial)
 
+def deconv(x, W)
+
 # if wanna change version of this function, see utils/batch_normalizations.py
 def batch_normalization(inputs, is_training, epsilon = 0.001, mode="extractable"):
     # inputs should have the shape of (batch_size, width, length, channels)
-#    out_size = inputs.shape[-1]
     shape = [int(ii) for ii in list(inputs.get_shape()[1:])]
     mean, var = tf.nn.moments(inputs, axes=[0])
     scale = tf.Variable(tf.ones(shape))
@@ -160,6 +148,10 @@ model_path = os.path.join(out_dir, 'observation/171122/fft_1024_5speeds_step1/ex
 def main(): # _ means the last param
   # obersavation test  
 #  time_info = time.strftime('%Y-%m-%d_%H:%M:%S',time.localtime(time.time()))
+    msg = ''
+    tmsg = 'this is to extract the layer images'
+    print(tmsg)
+    msg += tmsg
   
     # Import data
     
@@ -167,37 +159,25 @@ def main(): # _ means the last param
     x = tf.placeholder(tf.float32, [None, 1024])
     y_ = tf.placeholder(tf.float32, [None, 3])
     is_training = tf.placeholder(tf.bool)
+    
     y_conv, keep_prob = deepnn(x, is_training) # result_show:[h_conv1, h_pool1, h_conv2, h_pool2] 
-#    with tf.name_scope('accuracy'):
-#        correct_prediction = tf.equal(tf.argmax(y_conv, 1), tf.argmax(y_, 1))
-#        correct_prediction = tf.cast(correct_prediction, tf.float32)
-#    accuracy = tf.reduce_mean(correct_prediction)
+    with tf.name_scope('accuracy'):
+        correct_prediction = tf.equal(tf.argmax(y_conv, 1), tf.argmax(y_, 1))
+        correct_prediction = tf.cast(correct_prediction, tf.float32)
+    accuracy = tf.reduce_mean(correct_prediction)
 #    f_list = glob.glob(source_dir+'*.png')
     
-#    with open(out_dir+'resources/py3/data4fft_5speeds_1024_step1/input_data_t.pkl', 'rb') as f:
-#        test_set = pickle.load(f)
-#    predict(test_set, accuracy, model_path)
-    #1.load raw data
-    
-    #2.fft(raw data)
-    
-    #3. 
-            
-            
-
-
-            
-#########------custom functions----------------------------------
-def predict(data, accuracy_tensor, model_path):
-    datasize = data.num_examples()   
+    with open(out_dir+'resources/py3/data4fft_5speeds_1024_step1/input_data_t.pkl', 'rb') as f:
+        test_set = pickle.load(f)
+    datasize = test_set.num_examples()   
     
     with tf.Session() as sess:
         saver = tf.train.Saver()
         saver.restore(sess, model_path)
         correct = 0
         for ii in range(datasize):
-            img,label,_ = data.next_batch(1)
-            valid_accuracy = accuracy_tensor.eval(feed_dict={
+            img,label,_ = test_set.next_batch(1)
+            valid_accuracy = accuracy.eval(feed_dict={
                         x: img, y_: label, keep_prob: 1.0, is_training: False})
 #            print('predict ',tf.argmax(y_conv,1).eval(feed_dict={
 #                        x: img, y_: label, keep_prob: 1.0}))
@@ -205,15 +185,10 @@ def predict(data, accuracy_tensor, model_path):
                 correct += 1
             
     print(correct/datasize)
+            
+            
+#------custom functions----------------------------------
     
-def load(path, ftype='mat'):
-    if ftype == 'mat':
-        data = sio.loadmat(path)['originSet']
-    elif ftype == 'pkl':
-        with open(path, 'rb') as f:
-            data = pickle.load(f)
-    return data
-        
 
     
     
