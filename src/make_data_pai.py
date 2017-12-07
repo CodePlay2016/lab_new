@@ -170,7 +170,6 @@ def make_raw_dataset(filepath, targetpath,
             # specify the type('normal,pgmt,pgsw')
             (matdata, data_type, source_type,
              speed, num_of_data, length) = prepare_data(infile, fft, mirror)
-            
             num_per_piece = 40000//num_of_pieces
             for ii in range(num_of_pieces):
                 dataset = ImgDataSet()
@@ -186,22 +185,25 @@ def make_raw_dataset(filepath, targetpath,
                 pickle_it(dataset, file_name)
                 del dataset
     else:
-        tdataset = ImgDataSet()
-        file_name = os.path.join(targetpath, 'input_data_t.pkl')
+#        tdataset = ImgDataSet()
+        file_count = 0
         for infile in file_list:
+            file_count += 1
             (matdata, data_type, source_type,
              speed, num_of_data, length) = prepare_data(infile, fft, mirror)
-            
+            if speed == '50' and source_type == 'normal':
+                continue
             num_of_pieces = 10000//test_step
             dataset = ImgDataSet()
 #            dataset.images = matdata[list(range(50001,60001,test_step)),:]
             dataset.images = matdata[list(range(50001,60001,test_step)),:]
             dataset.labels = np.array([data_type]*num_of_pieces)
             dataset.make(shuffle=True, clean=True)
-            tdataset.join_data(dataset)
+            file_name = os.path.join(targetpath, 'input_data_t_'+str(file_count)+'.pkl')
+            pickle_it(dataset, file_name)
+#            tdataset.join_data(dataset)
             del matdata
-        print(tdataset.num_examples())
-        pickle_it(tdataset, file_name)
+#        print(tdataset.num_examples())
     
 def make_cwt_dataset(filepath, targetpath):
     '''
@@ -276,11 +278,11 @@ def make_cwt_dataset(filepath, targetpath):
 
 def main():
 #    cwt_filepath = "/home/codeplay2017/code/lab/code/paper/realwork/image/cwt_5speeds_step1/"
-    raw_filepath = "/home/codeplay2017/code/lab/code/paper/realwork/image/wen_data/raw_divided/time_series_step1_2048_5speeds/"
+    raw_filepath = "/home/codeplay2017/code/lab/code/paper/realwork/image/wen_data/raw_divided/angle_series_step1_2048_5speeds/"
 #    cwt_targetpath = "../resources/py2/data4cwt_50Hz_256x256_step1/"
-    raw_targetpath = "/home/codeplay2017/code/lab/code/paper/realwork/python/resources/py2/data4raw_5speeds_2048_step1/"
+    raw_targetpath = "/home/codeplay2017/code/lab/code/paper/realwork/python/resources/py2/data4angle_5speeds_2048_step1/"
 #    make_cwt_dataset(cwt_filepath)
-    make_raw_dataset(raw_filepath, raw_targetpath, fft=False, trainset=True, mirror=False)
+    make_raw_dataset(raw_filepath, raw_targetpath, fft=False, trainset=False, mirror=False)
     
 if __name__ == "__main__":
     main()
