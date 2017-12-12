@@ -25,19 +25,19 @@ FLAGS = None
 
 
 #####-----------hyper parameters---------------------
-NUM_ITERATION = 10000     # number of iterations
+NUM_ITERATION = 20000     # number of iterations
 TRAIN_BATCH_SIZE = 1000
-VALID_BATCH_SIZE = 700
+VALID_BATCH_SIZE = 275
 
 LEARNING_RATE = 1e-4
 BN_EPSILON = 1e-3 # learning rate for batch normalization
 
 ## define thresholds to stop training
 ACCURACY_THRESHOLD = 1.0
-LOSS_THRESHOLD = 0.5
+LOSS_THRESHOLD = 0.05
 
 #####------------------------------------------------
-
+train_speed = [50]
 
 
 def deepnn(x, is_training, keep_prob):
@@ -103,7 +103,7 @@ def deepnn(x, is_training, keep_prob):
     with tf.name_scope('conv4'):
         num_feature4 = 40
         W_conv4 = weight_variable([5, 1, num_feature3, num_feature4], 'W_conv4')
-        b_conv4 = bias_variable([num_feature4], 'W_conv4')
+        b_conv4 = bias_variable([num_feature4], 'b_conv4')
         BN_conv4, pop_mean, pop_var, beta, scale = batch_normalization(
                 conv2d(h_pool3, W_conv4) + b_conv4, is_training=is_training)
         h_conv4 = tf.nn.relu(BN_conv4, 'h_conv4')
@@ -186,12 +186,15 @@ def load_data():
     trainset = ImgDataSet()
     testset = ImgDataSet()
 #    data_num = str(8)
-    train_speed = 20
-    num_trainfile = 15
-    num_testfile = 1
+    
+    num_trainfile = 15*len(train_speed)
+    num_testfile = 3*len(train_speed)
     for ii in range(num_trainfile):
 #        data_path = os.path.join(FLAGS.buckets,'input_data_cwt_0-50_'+str(ii+1)+'.pkl')
-        file_index = int(ii//5*25 + (train_speed/2-ii%5))
+        temp = train_speed[ii//15]
+        index = ii%15
+        file_index = int(index//5*25 + (temp/2-index%5))
+        print(file_index,end=',')
         data_path = os.path.join(FLAGS.buckets,'input_data_'+str(file_index)+'.pkl')
         with tf.gfile.GFile(data_path, 'rb') as f:
             data = pickle.load(f)
@@ -199,7 +202,11 @@ def load_data():
     for ii in range(num_testfile):
 #        resource_path = FLAGS.buckets
 #        data_path = os.path.join(resource_path.replace('step_2400','step20_test'),'input_data_t_'+str(ii+1)+'.pkl')
-        data_path = os.path.join(FLAGS.buckets,'input_data_t.pkl')
+        temp = train_speed[ii//3]
+        index = ii%3
+        file_index = int(temp/10+index*5)
+        print(file_index,end=',')
+        data_path = os.path.join(FLAGS.buckets,'input_data_t_'+str(file_index)+'.pkl')
         with tf.gfile.GFile(data_path, 'rb') as f:
             data = pickle.load(f)
         testset.join_data(data)
@@ -296,10 +303,10 @@ def main(_): # _ means the last param
                 curve_list[2].append(valid_accuracy_average)
                 print(msg)
             loss_this = cross_entropy.eval(feed_dict={
-                        x: train_batch[0], y_: train_batch[1],
+                        x: valid_batch[0], y_: valid_batch[1],
                         keep_prob: 1.0, is_training: False})
             if (np.abs(valid_accuracy_average - ACCURACY_THRESHOLD) >= 0.01 and
-                loss_this >= 0.01):
+                loss_this >= LOSS_THRESHOLD):
                 train_step.run(feed_dict={x: train_batch[0], y_: train_batch[1],
                                           keep_prob: 0.5, is_training: True})
     
