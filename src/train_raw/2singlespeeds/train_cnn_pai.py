@@ -27,14 +27,15 @@ FLAGS = None
 #####-----------hyper parameters---------------------
 NUM_ITERATION = 20000     # number of iterations
 TRAIN_BATCH_SIZE = 1000
-VALID_BATCH_SIZE = 275
+VALID_BATCH_SIZE = 115
 
 LEARNING_RATE = 1e-4
 BN_EPSILON = 1e-3 # learning rate for batch normalization
 
 ## define thresholds to stop training
 ACCURACY_THRESHOLD = 1.0
-LOSS_THRESHOLD = 0.05
+LOSS_THRESHOLD = 0
+LOSS_STANDARD = 'valid' # whether refer to train loss or validate loss
 
 #####------------------------------------------------
 train_speed = [50]
@@ -55,16 +56,10 @@ def deepnn(x, is_training, keep_prob):
     # Last dimension is for "features" - there is only one here, since images are
     # grayscale -- it would be 3 for an RGB image, 4 for RGBA, etc.
     with tf.name_scope('reshape'):
-        x_image = tf.reshape(x, [-1, 2048,1, 1])
-        # show the image in tensorboard.
-        # third argument is max shown num
+        x_image = tf.reshape(x, [-1, 4096,1, 1])
 
-    # First convolutional layer - maps one grayscale image to 5 feature maps.
-    # The third dimension of W is number of input channels, the last is the 
-    # number of output channels
-#    is_training = tf.equal(is_training_num, 1)
     with tf.name_scope('conv1'):
-        num_feature1 = 20
+        num_feature1 = 32
         W_conv1 = weight_variable([64, 1, 1, num_feature1], name='W_conv1')
         b_conv1 = bias_variable([num_feature1], name='b_conv1')
         BN_conv1, pop_mean, pop_var, beta, scale = batch_normalization(
@@ -78,7 +73,7 @@ def deepnn(x, is_training, keep_prob):
 
     # Second convolutional layer -- maps 5 feature maps to 5
     with tf.name_scope('conv2'):
-        num_feature2 = 40
+        num_feature2 = 64
         W_conv2 = weight_variable([5, 1, num_feature1, num_feature2], name='W_conv2')
         b_conv2 = bias_variable([num_feature2], name='b_conv2')
         BN_conv2, pop_mean, pop_var, beta, scale = batch_normalization(
@@ -90,7 +85,7 @@ def deepnn(x, is_training, keep_prob):
         h_pool2 = max_pool(h_conv2)
         
     with tf.name_scope('conv3'):
-        num_feature3 = 40
+        num_feature3 = 64
         W_conv3 = weight_variable([5, 1, num_feature2, num_feature3], name='W_conv3')
         b_conv3 = bias_variable([num_feature3], name='b_conv3')
         BN_conv3, pop_mean, pop_var, beta, scale = batch_normalization(
@@ -101,7 +96,7 @@ def deepnn(x, is_training, keep_prob):
         h_pool3 = max_pool(h_conv3)
         
     with tf.name_scope('conv4'):
-        num_feature4 = 40
+        num_feature4 = 64
         W_conv4 = weight_variable([5, 1, num_feature3, num_feature4], 'W_conv4')
         b_conv4 = bias_variable([num_feature4], 'b_conv4')
         BN_conv4, pop_mean, pop_var, beta, scale = batch_normalization(
@@ -115,11 +110,11 @@ def deepnn(x, is_training, keep_prob):
     # Fully connected layer 1 -- after 2 round of downsampling, our 300x200 image
     # is down to 75x50x64 feature maps -- maps this to 256 features.
     with tf.name_scope('fc1'):
-        out_size = 2048
-        W_fc1 = weight_variable([8 * num_feature4, out_size], 'W_fc1')
+        out_size = 4096
+        W_fc1 = weight_variable([16 * num_feature4, out_size], 'W_fc1')
         b_fc1 = bias_variable([out_size], 'b_fc1')
     
-        h_pool2_flat = tf.reshape(h_pool4, [-1, 8*num_feature4])
+        h_pool2_flat = tf.reshape(h_pool4, [-1, 16*num_feature4])
         BN_fc1, pop_mean, pop_var, beta, scale = batch_normalization(
                 tf.matmul(h_pool2_flat, W_fc1) + b_fc1, is_training=is_training)
         h_fc1 = tf.nn.relu(BN_fc1, 'h_fc1')
@@ -220,7 +215,7 @@ def main(_): # _ means the last param
   
     print("constructing graph..")
   # Create the model
-    x = tf.placeholder(tf.float32, [None, 2048])
+    x = tf.placeholder(tf.float32, [None, 4096])
     y_ = tf.placeholder(tf.float32, [None, 3])
     is_training = tf.placeholder(tf.bool)
     keep_prob = tf.placeholder(tf.float32)
@@ -302,8 +297,9 @@ def main(_): # _ means the last param
                 curve_list[1].append(valid_accuracy)
                 curve_list[2].append(valid_accuracy_average)
                 print(msg)
+            loss_batch = valid_batch if LOSS_STANDARD is 'train' else train_batch
             loss_this = cross_entropy.eval(feed_dict={
-                        x: valid_batch[0], y_: valid_batch[1],
+                        x: loss_batch[0], y_: loss_batch[1],
                         keep_prob: 1.0, is_training: False})
             if (np.abs(valid_accuracy_average - ACCURACY_THRESHOLD) >= 0.01 and
                 loss_this >= LOSS_THRESHOLD):
@@ -315,6 +311,7 @@ def main(_): # _ means the last param
 
         with tf.gfile.GFile(output_dir+'curvelist.pkl', 'wb') as f:
             pickle.dump(curve_list, f)
+        print('max valid accuracy is %.3g' % max(curve_list[1]))
         print(time_info)
 
 # this is the data structure for my dataset

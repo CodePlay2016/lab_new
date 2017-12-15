@@ -282,11 +282,11 @@ def make_cwt_dataset(filepath, targetpath):
 
 def main():
 #    cwt_filepath = "/home/codeplay2017/code/lab/code/paper/realwork/image/cwt_5speeds_step1/"
-    raw_filepath = "/home/codeplay2017/code/lab/code/paper/realwork/image/wen_data/raw_divided/time_series_step1_4096_5speeds/"
+    raw_filepath = "/home/codeplay2017/code/lab/code/paper/realwork/image/wen_data/raw_divided/angle_series_step1_4096_5speeds/"
 #    cwt_targetpath = "../resources/py2/data4cwt_50Hz_256x256_step1/"
-    raw_targetpath = "/home/codeplay2017/code/lab/code/paper/realwork/python/resources/py2/data4raw_5speeds_4096_step1/"
+    raw_targetpath = "/home/codeplay2017/code/lab/code/paper/realwork/python/resources/py3/data4angle_5speeds_4096_step2/"
 #    make_cwt_dataset(cwt_filepath)
-    make_raw_dataset(raw_filepath, raw_targetpath, fft=False, trainset=True, mirror=False)
+    make_raw_dataset(raw_filepath, raw_targetpath, fft=False, trainset=False, mirror=False)
     
 if __name__ == "__main__":
     main()
