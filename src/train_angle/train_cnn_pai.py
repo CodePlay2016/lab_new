@@ -25,124 +25,111 @@ FLAGS = None
 
 
 #####-----------hyper parameters---------------------
-NUM_ITERATION = 100000 # number of iterations
+NUM_ITERATION = 50000     # number of iterations
 TRAIN_BATCH_SIZE = 1000
 VALID_BATCH_SIZE = 700
 
 LEARNING_RATE = 1e-4
 BN_EPSILON = 1e-3 # learning rate for batch normalization
+BN_MOMENTUM = 0.9 
 
 ## define thresholds to stop training
 ACCURACY_THRESHOLD = 1.0
-LOSS_THRESHOLD = 0.5
-
-
+LOSS_THRESHOLD = 0
+LOSS_STANDARD = 'valid' # whether refer to train loss or validate loss
 
 #####------------------------------------------------
+train_speed = [10,20,30,40,50]
 
 
-
-def deepnn(x, is_training):
+def deepnn(x, is_training, keep_prob):
     """deepnn builds the graph for a deep net for classifying digits.
     Args:
-        x: an input tensor with the dimensions (N_examples, 240*200), where 300*200
-        is the number of pixels in the image.
+        x: an input tensor with the dimensions (N_examples, total_pixels)
+        is_training: boolean, whether use this function for train or test
+        keep_prob: a scalar within a interval of (0,1), rate for drop out
     Returns:
-        A tuple (y, keep_prob). y is a tensor of shape (N_examples, 3), with values
-        equal to the logits of classifying the digit into one of 10 classes (the
-            digits 0-9). keep_prob is a scalar placeholder for the probability of
-            dropout.
+        y: which is a tensor of shape (N_examples, N_classes), with values
     """
     # Reshape to use within a convolutional neural net.
     # Last dimension is for "features" - there is only one here, since images are
     # grayscale -- it would be 3 for an RGB image, 4 for RGBA, etc.
     with tf.name_scope('reshape'):
-        x_image = tf.reshape(x, [-1, 2048,1, 1])
-        # show the image in tensorboard.
-        # third argument is max shown num
+        x_image = tf.reshape(x, [-1, 4096,1, 1])
 
-    # First convolutional layer - maps one grayscale image to 5 feature maps.
-    # The third dimension of W is number of input channels, the last is the 
-    # number of output channels
-#    is_training = tf.equal(is_training_num, 1)
     with tf.name_scope('conv1'):
-        num_feature1 = 20
-        W_conv1 = weight_variable([64, 1, 1, num_feature1])
-        b_conv1 = bias_variable([num_feature1])
+        num_feature1 = 32
+        W_conv1 = weight_variable([64, 1, 1, num_feature1], name='W_conv1')
+        b_conv1 = bias_variable([num_feature1], name='b_conv1')
         BN_conv1 = batch_normalization(
                 tf.nn.conv2d(x_image, W_conv1, strides=[1, 16, 1, 1],
                              padding='SAME') + b_conv1, is_training=is_training)
-        h_conv1 = tf.nn.relu(BN_conv1)
-#       layer_image1 = tf.transpose(h_conv1, perm=[3,1,2,0])
-#       tf.summary.image('conv2',
-#                     layer_image1[:,:,:,-1].reshape([num_feature1,200,240,1]),
-#                     max_outputs=num_feature1/2)
-  # Pooling layer - downsamples by 2X.
+        h_conv1 = tf.nn.relu(BN_conv1, name='h_conv1')
+
+    # Pooling layer - downsamples by 2X.
     with tf.name_scope('pool1'):
         h_pool1 = max_pool(h_conv1)
-#    tf.summary.image('pool1', h_pool1)
 
-  # Second convolutional layer -- maps 5 feature maps to 5
+    # Second convolutional layer -- maps 5 feature maps to 5
     with tf.name_scope('conv2'):
-        num_feature2 = 40
-        W_conv2 = weight_variable([5, 1, num_feature1, num_feature2])
-        b_conv2 = bias_variable([num_feature2])
+        num_feature2 = 64
+        W_conv2 = weight_variable([5, 1, num_feature1, num_feature2], name='W_conv2')
+        b_conv2 = bias_variable([num_feature2], name='b_conv2')
         BN_conv2 = batch_normalization(
                 conv2d(h_pool1, W_conv2) + b_conv2, is_training=is_training)
-        h_conv2 = tf.nn.relu(BN_conv2)
+        h_conv2 = tf.nn.relu(BN_conv2, name='h_conv2')
 
-  # Second pooling layer.
+    # Second pooling layer.
     with tf.name_scope('pool2'):
         h_pool2 = max_pool(h_conv2)
         
     with tf.name_scope('conv3'):
-        num_feature3 = 40
-        W_conv3 = weight_variable([5, 1, num_feature2, num_feature3])
-        b_conv3 = bias_variable([num_feature3])
+        num_feature3 = 64
+        W_conv3 = weight_variable([5, 1, num_feature2, num_feature3], name='W_conv3')
+        b_conv3 = bias_variable([num_feature3], name='b_conv3')
         BN_conv3 = batch_normalization(
                 conv2d(h_pool2, W_conv3) + b_conv3, is_training=is_training)
-        h_conv3 = tf.nn.relu(BN_conv3)
+        h_conv3 = tf.nn.relu(BN_conv3, name='h_conv3')
         
     with tf.name_scope('pool3'):
         h_pool3 = max_pool(h_conv3)
         
     with tf.name_scope('conv4'):
-        num_feature4 = 40
-        W_conv4 = weight_variable([5, 1, num_feature3, num_feature4])
-        b_conv4 = bias_variable([num_feature4])
+        num_feature4 = 64
+        W_conv4 = weight_variable([5, 1, num_feature3, num_feature4], 'W_conv4')
+        b_conv4 = bias_variable([num_feature4], 'b_conv4')
         BN_conv4 = batch_normalization(
                 conv2d(h_pool3, W_conv4) + b_conv4, is_training=is_training)
-        h_conv4 = tf.nn.relu(BN_conv4)
+        h_conv4 = tf.nn.relu(BN_conv4, 'h_conv4')
         
-  # Second pooling layer.
+    # Second pooling layer.
     with tf.name_scope('pool4'):
         h_pool4 = max_pool(h_conv4)
         
-  # Fully connected layer 1 -- after 2 round of downsampling, our 300x200 image
-  # is down to 75x50x64 feature maps -- maps this to 256 features.
+    # Fully connected layer 1 -- after 2 round of downsampling, our 300x200 image
+    # is down to 75x50x64 feature maps -- maps this to 256 features.
     with tf.name_scope('fc1'):
-        out_size = 2048
-        W_fc1 = weight_variable([8 * num_feature4, out_size])
-        b_fc1 = bias_variable([out_size])
+        out_size = 4096
+        W_fc1 = weight_variable([16 * num_feature4, out_size], 'W_fc1')
+        b_fc1 = bias_variable([out_size], 'b_fc1')
     
-        h_pool2_flat = tf.reshape(h_pool4, [-1, 8*num_feature4])
+        h_pool2_flat = tf.reshape(h_pool4, [-1, 16*num_feature4])
         BN_fc1 = batch_normalization(
                 tf.matmul(h_pool2_flat, W_fc1) + b_fc1, is_training=is_training)
-        h_fc1 = tf.nn.relu(BN_fc1)
+        h_fc1 = tf.nn.relu(BN_fc1, 'h_fc1')
 
-  # Dropout - controls the complexity of the model, prevents co-adaptation of
-  # features.
+    # Dropout - controls the complexity of the model, prevents co-adaptation of
+    # features.
     with tf.name_scope('dropout'):
-        keep_prob = tf.placeholder(tf.float32)
         h_fc1_drop = tf.nn.dropout(h_fc1, keep_prob)
 
   # Map the 256 features to 3 classes, one for each digit
     with tf.name_scope('fc2'):
-        W_fc2 = weight_variable([out_size, 3])
-        b_fc2 = bias_variable([3])
+        W_fc2 = weight_variable([out_size, 3], 'W_fc2')
+        b_fc2 = bias_variable([3], 'b_fc2')
     
         y_conv = tf.matmul(h_fc1_drop, W_fc2) + b_fc2
-    return y_conv, keep_prob
+    return y_conv
 
 
 def conv2d(x, W):
@@ -162,46 +149,45 @@ def weight_variable(shape, name=None):
 def bias_variable(shape, name=None):
     """bias_variable generates a bias variable of a given shape."""
     initial = tf.constant(0.1, shape=shape)
-    return tf.Variable(initial)
+    return tf.Variable(initial, name=name)
 
 # if wanna change version of this function, see utils/batch_normalizations.py
-def batch_normalization(inputs, is_training, epsilon = BN_EPSILON, mode="extractable"):
-    # inputs should have the shape of (batch_size, width, length, channels)
-#    out_size = inputs.shape[-1]
-    shape = [int(ii) for ii in list(inputs.get_shape()[1:])]
-    mean, var = tf.nn.moments(inputs, axes=[0])
-    scale = tf.Variable(tf.ones(shape))
-    beta = tf.Variable(tf.zeros(shape))
-    pop_mean = tf.Variable(tf.zeros(shape), trainable=False)
-    pop_var = tf.Variable(tf.ones(shape), trainable=False)
-    batch_mean, batch_var = tf.nn.moments(inputs,[0])
-
-    if mode == "extractable":
-        mean, var = tf.cond(is_training, 
-            lambda: (
-                tf.assign(pop_mean, pop_mean * (1-epsilon) + batch_mean * epsilon),
-                tf.assign(pop_var, pop_var * (1-epsilon) + batch_var * epsilon)),
-            lambda: (pop_mean, pop_var))
-        
-    return tf.nn.batch_normalization(inputs, mean, var, beta, scale, epsilon)
+def batch_normalization(inputs, is_training, epsilon = BN_EPSILON, momentum=BN_MOMENTUM):
+    return tf.layers.batch_normalization(
+        inputs=inputs,
+        axis=-1,
+        momentum=momentum,
+        epsilon=epsilon,
+        center=True,
+        scale=False,
+        training = is_training)
     
 def load_data():
     print('loading data...')
     trainset = ImgDataSet()
     testset = ImgDataSet()
 #    data_num = str(8)
-    num_trainfile = 75
-    num_testfile = 1
+    
+    num_trainfile = 15*len(train_speed)
+    num_testfile = 3*len(train_speed)
     for ii in range(num_trainfile):
 #        data_path = os.path.join(FLAGS.buckets,'input_data_cwt_0-50_'+str(ii+1)+'.pkl')
-        data_path = os.path.join(FLAGS.buckets,'input_data_'+str(ii+1)+'.pkl')
+        temp = train_speed[ii//15]
+        index = ii%15
+        file_index = int(index//5*25 + (temp/2-index%5))
+        print(file_index,end=',')
+        data_path = os.path.join(FLAGS.buckets,'input_data_'+str(file_index)+'.pkl')
         with tf.gfile.GFile(data_path, 'rb') as f:
             data = pickle.load(f)
         trainset.join_data(data)
     for ii in range(num_testfile):
 #        resource_path = FLAGS.buckets
 #        data_path = os.path.join(resource_path.replace('step_2400','step20_test'),'input_data_t_'+str(ii+1)+'.pkl')
-        data_path = os.path.join(FLAGS.buckets,'input_data_t.pkl')
+        temp = train_speed[ii//3]
+        index = ii%3
+        file_index = int(temp/10+index*5)
+        print(file_index,end=',')
+        data_path = os.path.join(FLAGS.buckets,'input_data_t_'+str(file_index)+'.pkl')
         with tf.gfile.GFile(data_path, 'rb') as f:
             data = pickle.load(f)
         testset.join_data(data)
@@ -215,11 +201,11 @@ def main(_): # _ means the last param
   
     print("constructing graph..")
   # Create the model
-    x = tf.placeholder(tf.float32, [None, 2048])
+    x = tf.placeholder(tf.float32, [None, 4096])
     y_ = tf.placeholder(tf.float32, [None, 3])
     is_training = tf.placeholder(tf.bool)
-
-    y_conv, keep_prob = deepnn(x, is_training)
+    keep_prob = tf.placeholder(tf.float32)
+    y_conv = deepnn(x, is_training, keep_prob)
 
   # Define loss and optimizer
     with tf.name_scope('loss'):
@@ -228,8 +214,10 @@ def main(_): # _ means the last param
         cross_entropy = tf.reduce_mean(cross_entropy)
         tf.summary.scalar('loss-cross_entropy', cross_entropy)
 
-    with tf.name_scope('adam_optimizer'):
-        train_step = tf.train.AdamOptimizer(LEARNING_RATE).minimize(cross_entropy)
+    update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+    with tf.control_dependencies(update_ops):
+        with tf.name_scope('adam_optimizer'):
+            train_step = tf.train.AdamOptimizer(1e-4).minimize(cross_entropy)
 
     with tf.name_scope('accuracy'):
         correct_prediction = tf.equal(tf.argmax(y_conv, 1), tf.argmax(y_, 1))
@@ -262,30 +250,15 @@ def main(_): # _ means the last param
     
         valid_accuracy_list = []
         valid_accuracy_average = 0
-        loss_this = 10 # give a initial loss
         curve_list = [[],[],[]]
-        is_loss_decrease = False
-        save_count = 0
+        loss_this = 10 # give a initial loss
+#        is_loss_decrease = False
+#        is_loss_min = False
+#        save_count = 0
+        doprint = True
         for i in range(NUM_ITERATION+1):
             train_batch, is_tepoch_over = trainset.next_batch(TRAIN_BATCH_SIZE)
             valid_batch, is_vepoch_over = testset.next_batch(VALID_BATCH_SIZE)
-            
-            ## early stop
-            loss_last = loss_this
-            loss_this = cross_entropy.eval(feed_dict={
-                    x: train_batch[0], y_: train_batch[1],
-                    keep_prob: 1.0, is_training: False})
-            is_loss_min = True if (loss_this>loss_last and is_loss_decrease) else False
-            is_loss_decrease = True if loss_last>loss_this else False
-            
-            if (np.abs(valid_accuracy_average - ACCURACY_THRESHOLD) < 0.01 or
-                (loss_this < LOSS_THRESHOLD and is_loss_min)):
-                saver.save(sess=sess, save_path=model_path)
-                save_count += 1
-                print('model saved')
-            else:
-                train_step.run(feed_dict={x: train_batch[0], y_: train_batch[1],
-                                      keep_prob: 0.5, is_training: True})
             
             if i and i % 100 == 0: # and show
                 train_accuracy = accuracy.eval(feed_dict={
@@ -294,6 +267,7 @@ def main(_): # _ means the last param
                 valid_accuracy = accuracy.eval(feed_dict={
                         x: valid_batch[0], y_: valid_batch[1],
                         keep_prob: 1.0, is_training: False})
+                
                 train_summary = sess.run(merged_summary, feed_dict={
                         x: train_batch[0], y_: train_batch[1],
                         keep_prob: 1.0, is_training:False})
@@ -312,13 +286,23 @@ def main(_): # _ means the last param
                 curve_list[1].append(valid_accuracy)
                 curve_list[2].append(valid_accuracy_average)
                 print(msg)
-            
-    
+            loss_batch = valid_batch if LOSS_STANDARD is 'train' else train_batch
+            loss_this = cross_entropy.eval(feed_dict={
+                        x: loss_batch[0], y_: loss_batch[1],
+                        keep_prob: 1.0, is_training: False})
+            if (np.abs(valid_accuracy_average - ACCURACY_THRESHOLD) >= 0.01 and
+                loss_this >= LOSS_THRESHOLD):
+                train_step.run(feed_dict={x: train_batch[0], y_: train_batch[1],
+                                          keep_prob: 0.5, is_training: True})
+            elif doprint:
+                print('full')
+                doprint = False
         # save the trained model
         saver.save(sess=sess, save_path=model_path)
 
         with tf.gfile.GFile(output_dir+'curvelist.pkl', 'wb') as f:
             pickle.dump(curve_list, f)
+        print('max valid accuracy is %.3g' % max(curve_list[1]))
         print(time_info)
 
 # this is the data structure for my dataset

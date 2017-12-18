@@ -155,7 +155,8 @@ def prepare_data(filepath, fft, mirror, normalize=False):
     return matdata, data_type, source_type, speed, num_of_data, length
 
 def make_raw_dataset(filepath, targetpath, 
-                     trainset=True, test_step=200,
+                     trainset=True, testset=False,
+                     test_step=200,
                      num_of_pieces=5,
                      fft = False,
                      mirror=True):
@@ -164,11 +165,13 @@ def make_raw_dataset(filepath, targetpath,
     file_list = glob.glob(filepath + '*.mat')
     list.sort(file_list)
     file_num = 0
-    if trainset:
-        for infile in file_list:
-            # specify the type('normal,pgmt,pgsw')
-            (matdata, data_type, source_type,
-             speed, num_of_data, length) = prepare_data(infile, fft, mirror)
+    file_count = 0
+    for infile in file_list:
+        # specify the type('normal,pgmt,pgsw')
+        file_count += 1
+        (matdata, data_type, source_type,
+         speed, num_of_data, length) = prepare_data(infile, fft, mirror)
+        if trainset:
             num_per_piece = 40000//num_of_pieces # number of examples in each .pkl file
             train_step = 2 # the overlap between each segment
             for ii in range(num_of_pieces):
@@ -179,33 +182,26 @@ def make_raw_dataset(filepath, targetpath,
                 print(dataset.num_examples())
                 
                 dataset.make(shuffle=True, clean=True)
-#                num_switcher[source_type] += 1
+            #                num_switcher[source_type] += 1
                 file_num += 1
                 file_name = os.path.join(
                         targetpath, 'input_data_'+str(file_num)+'.pkl')
                 pickle_it(dataset, file_name)
                 del dataset
-    else:
-#        tdataset = ImgDataSet()
-        file_count = 0
-        for infile in file_list:
-            file_count += 1
-            (matdata, data_type, source_type,
-             speed, num_of_data, length) = prepare_data(infile, fft, mirror)
-            print(source_type)
+        if testset:
             normal_flag = True
             if speed == '50' and source_type == 'normal':
                 normal_flag = False
-            num_of_pieces = 10000//test_step
+            num_of_pieces_t = 10000//test_step
             dataset = ImgDataSet()
-            data_index = list(range(50001,60001,test_step)) if normal_flag else list(range(45000,48000,test_step))
-#            dataset.images = matdata[list(range(50001,60001,test_step)),:]
+            data_index = list(range(50001,60001,test_step))# if normal_flag else list(range(45000,48000,test_step))
+    #            dataset.images = matdata[list(range(50001,60001,test_step)),:]
             dataset.images = matdata[data_index,:]
-            dataset.labels = np.array([data_type]*num_of_pieces)
+            dataset.labels = np.array([data_type]*num_of_pieces_t)
             dataset.make(shuffle=True, clean=True)
             file_name = os.path.join(targetpath, 'input_data_t_'+str(file_count)+'.pkl')
             pickle_it(dataset, file_name)
-#            tdataset.join_data(dataset)
+    #            tdataset.join_data(dataset)
             del matdata
 #        print(tdataset.num_examples())
     
@@ -286,7 +282,8 @@ def main():
 #    cwt_targetpath = "../resources/py2/data4cwt_50Hz_256x256_step1/"
     raw_targetpath = "/home/codeplay2017/code/lab/code/paper/realwork/python/resources/py3/data4angle_5speeds_4096_step2/"
 #    make_cwt_dataset(cwt_filepath)
-    make_raw_dataset(raw_filepath, raw_targetpath, fft=False, trainset=False, mirror=False)
+    make_raw_dataset(raw_filepath, raw_targetpath, fft=False, mirror=False,
+                     trainset=False, testset=True)
     
 if __name__ == "__main__":
     main()

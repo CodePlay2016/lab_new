@@ -19,7 +19,8 @@ Created on Sun Sep 10 10:31:06 2017
 import tensorflow as tf
 import numpy as np
 import os, pickle
-from make_data_pai import ImgDataSet
+import make_data_pai as md
+import matplotlib.pyplot as plt
 #from tensorflow.python import pywrap_tensorflow
 #import matplotlib as mp
 
@@ -27,12 +28,8 @@ from make_data_pai import ImgDataSet
 source_dir = '/home/codeplay2017/code/lab/code/paper/realwork/image/wen_data/raw_divided/time_series_step1_4096_5speeds/'
 data_dir = '/home/codeplay2017/code/lab/code/paper/realwork/python/resources/py3/data4raw_5speeds_4096_step2/'
 out_dir = '/home/codeplay2017/code/lab/code/paper/realwork/python/'
-
-#model_path = os.path.join(out_dir, 'observation/171220/raw_5speed/2017-12-15_17:20:18/model.ckpt')
-#model_path = os.path.join(out_dir, 'observation/171220/raw_1speed/50Hz/2017-12-15_16:11:15/model.ckpt')
-#model_path = os.path.join(out_dir, 'observation/171220/angle_1speed/50Hz/2017-12-18_10:25:16/model.ckpt')
-#model_path = os.path.join(out_dir, 'observation/171220/raw_2speed/2017-12-16_11:04:30/model.ckpt')
-model_path = os.path.join(out_dir, 'observation/171220/raw_2speed/10,50/2017-12-18_11:56:46/model.ckpt')
+#model_path = os.path.join(out_dir, 'observation/171213/angle_5speeds_4096/2017-12-14_10:17:23/model.ckpt')
+model_path = os.path.join(out_dir, 'observation/171220/raw_5speed/2017-12-15_17:20:18/model.ckpt')
 ####-----------------------------------------------------------------------
 #reader = pywrap_tensorflow.NewCheckpointReader(model_path)
 #var_to_shape_map = reader.get_variable_to_shape_map()
@@ -122,7 +119,7 @@ def deepnn(x, is_training, keep_prob):
         b_fc2 = bias_variable([3], 'b_fc2')
     
         y_conv = tf.matmul(h_fc1_drop, W_fc2) + b_fc2
-    return y_conv
+    return y_conv, h_conv1
 
 
 def conv2d(x, W):
@@ -157,7 +154,7 @@ def batch_normalization(inputs, is_training, epsilon = 0.001, momentum=0.9):
         training = is_training)
 
 def load_test_data(test_speed):
-    testset = ImgDataSet()
+    testset = md.ImgDataSet()
     num_testfile = 3*len(test_speed)
     for ii in range(num_testfile):
 #        resource_path = FLAGS.buckets
@@ -174,52 +171,60 @@ def load_test_data(test_speed):
     return testset
 
 def main(): # _ means the last param
+  # obersavation test  
+#  time_info = time.strftime('%Y-%m-%d_%H:%M:%S',time.localtime(time.time()))
+  
+    # Import data
+    
     # Create the model
     x = tf.placeholder(tf.float32, [None, 4096])
     y_ = tf.placeholder(tf.float32, [None, 3])
     is_training = tf.placeholder(tf.bool)
     keep_prob = tf.placeholder(tf.float32)
     
-    y_conv = deepnn(x, is_training, keep_prob)
+    y_conv, h_conv1 = deepnn(x, is_training, keep_prob)
     
     with tf.name_scope('accuracy'):
         correct_prediction = tf.equal(tf.argmax(y_conv, 1), tf.argmax(y_, 1))
         correct_prediction = tf.cast(correct_prediction, tf.float32)
     accuracy = tf.reduce_mean(correct_prediction)
 
-    ### load data
-    test_speed = [40]
-    testset = load_test_data(test_speed)
-    num_of_example = testset.num_examples()
-    print('\nnumber of test examples is ', num_of_example)
+    extract_path = '/home/codeplay2017/code/lab/code/paper/realwork/data/steady_condition/20150407pmt_12k_50.txt'
+    original = np.loadtxt(extract_path)[:,3]
     
     with tf.Session() as sess:
         saver = tf.train.Saver()
         saver.restore(sess, model_path)
 
-        ### test accuracy of model
-        correct = 0
-        count = 0
-        test_step = 1
-        for ii in range(num_of_example//test_step):
-            count += 1
-            test_batch = testset.next_batch(test_step)
-            test_feed = {x: test_batch[0], y_: test_batch[1],
-                    keep_prob: 1.0, is_training: False}
-            test_accuracy = accuracy.eval(feed_dict=test_feed)
-            if test_accuracy is not 1:
-                print(str(ii),test_batch[1],test_accuracy)
-            correct += test_accuracy
-            
-        print('accuracy is ', correct/count)
+        ### extract features
+        start_index = 100
+        end_index = start_index + 4096
+        ori_segment = original[start_index:end_index]
+        plt.figure()
+        plt.plot(fft(ori_segment))
         
+        test_feed = {x: ori_segment.reshape([1,4096]),
+                     y_: np.array([0,1,0]).reshape([1,3]),
+                     keep_prob: 1.0, is_training: False}
+        
+        out_conv1 = sess.run(h_conv1, feed_dict=test_feed)
+        out_conv1 = out_conv1.reshape([256,32])
+        print(out_conv1.shape)      
+        plt.figure()
+        for ii in range(32):
+            plt.subplot(4,8,ii+1)
+            out_temp = out_conv1[:,ii]
+            out_temp = fft(out_temp)
+            plt.plot(out_temp)
+    return ori_segment, out_conv1
             
 
 
             
 #########------custom functions----------------------------------
-        
+def fft(signal):
+    return np.abs(np.fft.fft(signal))        
     
     
 if __name__ == '__main__':
-    main()
+    original, out = main()

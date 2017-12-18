@@ -77,8 +77,8 @@ def plot_between_models(curvelists, curvename='train'):
     return ax
     
 def main():
-    filepath1 = '/home/codeplay2017/code/lab/code/paper/realwork/python/observation/171122/raw_2048_5speeds_step1/exp4/curvelist.pkl'
-    filepath2 = '/home/codeplay2017/code/lab/code/paper/realwork/python/observation/171122/raw_2048_5speeds_step1/exp8/2017-12-01_13:26:57/curvelist.pkl'
+    filepath1 = '/home/codeplay2017/code/lab/code/paper/realwork/python/observation/171220/raw_5speed/2017-12-15_17:20:18/curvelist.pkl'
+    filepath2 = '/home/codeplay2017/code/lab/code/paper/realwork/python/observation/171220/2017-12-16_10:33:01/curvelist.pkl'
     with open(filepath1, 'rb') as f:
         curvelist1 = pickle.load(f, encoding='latin1') # the 'encoding' parameter solves the compatibility between python2 and 3
     with open(filepath2, 'rb') as f:
@@ -89,9 +89,9 @@ def main():
     plot_for_model(curvelist1[1],annotate_xytext=(-30,-10),annotate=True)
     plot_for_model(curvelist1[2],label='last10 test',color='orange',annotate_xytext=(-30,-15),annotate=True)
     plt.figure(2)
-    plot_for_model(curvelist2[1],annotate=True,annotate_xytext=(-30,-3))
+    plot_for_model(curvelist2[1],annotate=True,annotate_xytext=(-30,0))
     plot_for_model(curvelist2[2],label='last10 test',color='orange',
-                   annotate_xytext=(-30,5), annotate=True)
+                   annotate_xytext=(-30,-5), annotate=True)
     
 #    plot_for_model(curvelist1[2], figure=False, color='red',
 #                   labels=['3-3-3,step20'],
