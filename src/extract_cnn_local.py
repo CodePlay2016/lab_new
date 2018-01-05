@@ -119,7 +119,7 @@ def deepnn(x, is_training, keep_prob):
         b_fc2 = bias_variable([3], 'b_fc2')
     
         y_conv = tf.matmul(h_fc1_drop, W_fc2) + b_fc2
-    return y_conv, h_conv1
+    return y_conv, BN_conv1
 
 
 def conv2d(x, W):
@@ -182,15 +182,17 @@ def main(): # _ means the last param
     is_training = tf.placeholder(tf.bool)
     keep_prob = tf.placeholder(tf.float32)
     
-    y_conv, h_conv1 = deepnn(x, is_training, keep_prob)
+    y_conv, out = deepnn(x, is_training, keep_prob)
     
     with tf.name_scope('accuracy'):
         correct_prediction = tf.equal(tf.argmax(y_conv, 1), tf.argmax(y_, 1))
         correct_prediction = tf.cast(correct_prediction, tf.float32)
     accuracy = tf.reduce_mean(correct_prediction)
 
-    extract_path = '/home/codeplay2017/code/lab/code/paper/realwork/data/steady_condition/20150407pmt_12k_50.txt'
-    original = np.loadtxt(extract_path)[:,3]
+    extract_path1 = '/home/codeplay2017/code/lab/code/paper/realwork/data/steady_condition/20150407pmt_12k_40.txt'
+    extract_path2 = '/home/codeplay2017/code/lab/code/paper/realwork/data/steady_condition/20150407pmt_12k_50.txt'
+    original1 = np.loadtxt(extract_path1)[:,3]
+    original2 = np.loadtxt(extract_path2)[:,3]
     
     with tf.Session() as sess:
         saver = tf.train.Saver()
@@ -199,31 +201,44 @@ def main(): # _ means the last param
         ### extract features
         start_index = 100
         end_index = start_index + 4096
-        ori_segment = original[start_index:end_index]
+        ori_segment1 = original1[start_index:end_index]
+        ori_segment2 = original2[start_index:end_index]
         plt.figure()
-        plt.plot(fft(ori_segment))
+        plt.plot(fft(ori_segment1))
+        plt.figure()
+        plt.plot(fft(ori_segment2))
         
-        test_feed = {x: ori_segment.reshape([1,4096]),
+        test_feed1 = {x: ori_segment1.reshape([1,4096]),
+                     y_: np.array([1,0,0]).reshape([1,3]),
+                     keep_prob: 1.0, is_training: False}
+        test_feed2 = {x: ori_segment2.reshape([1,4096]),
                      y_: np.array([0,1,0]).reshape([1,3]),
                      keep_prob: 1.0, is_training: False}
         
-        out_conv1 = sess.run(h_conv1, feed_dict=test_feed)
-        out_conv1 = out_conv1.reshape([256,32])
-        print(out_conv1.shape)      
-        plt.figure()
-        for ii in range(32):
-            plt.subplot(4,8,ii+1)
-            out_temp = out_conv1[:,ii]
-            out_temp = fft(out_temp)
-            plt.plot(out_temp)
-    return ori_segment, out_conv1
+        out1 = sess.run(out, feed_dict=test_feed1)
+        out2 = sess.run(out, feed_dict=test_feed2)
+        out1 = out1.reshape([out.shape[1],out.shape[3]])
+        out2 = out2.reshape([out.shape[1],out.shape[3]])
+        print(out1.shape)      
+        plot_feature(out1)
+        plot_feature(out2)
+    return ori_segment1, out1
             
 
 
             
 #########------custom functions----------------------------------
 def fft(signal):
-    return np.abs(np.fft.fft(signal))        
+    return np.abs(np.fft.fft(signal)) 
+
+def plot_feature(feature, dofft=True):
+    plt.figure()
+    for ii in range(feature.shape[1]):
+        plt.subplot(feature.shape[1]//8,8,ii+1)
+        out_temp = feature[:,ii]
+        if dofft:
+            out_temp = fft(out_temp)
+        plt.plot(out_temp)  
     
     
 if __name__ == '__main__':

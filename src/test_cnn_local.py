@@ -5,16 +5,16 @@ Created on Sun Sep 10 10:31:06 2017
 
 @author: codeplay2017
 """
-#from __future__ import absolute_import
-#from __future__ import division
-#from __future__ import print_function
-#from __future__ import unicode_literals
-#
-#from builtins import str
-## etc., as needed
-#
-#from future import standard_library
-#standard_library.install_aliases()
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+from __future__ import unicode_literals
+
+from builtins import str
+# etc., as needed
+
+from future import standard_library
+standard_library.install_aliases()
 
 import tensorflow as tf
 import numpy as np
@@ -25,14 +25,18 @@ from make_data_pai import ImgDataSet
 
 ####-----------------------------------------------------------------------
 source_dir = '/home/codeplay2017/code/lab/code/paper/realwork/image/wen_data/raw_divided/time_series_step1_4096_5speeds/'
-data_dir = '/home/codeplay2017/code/lab/code/paper/realwork/python/resources/py3/data4raw_5speeds_4096_step2/'
+data_dir = '/home/codeplay2017/code/lab/code/paper/realwork/python/resources/py2/data4afft_5speeds_2048_step2/'
 out_dir = '/home/codeplay2017/code/lab/code/paper/realwork/python/'
 
 #model_path = os.path.join(out_dir, 'observation/171220/raw_5speed/2017-12-15_17:20:18/model.ckpt')
 #model_path = os.path.join(out_dir, 'observation/171220/raw_1speed/50Hz/2017-12-15_16:11:15/model.ckpt')
 #model_path = os.path.join(out_dir, 'observation/171220/angle_1speed/50Hz/2017-12-18_10:25:16/model.ckpt')
 #model_path = os.path.join(out_dir, 'observation/171220/raw_2speed/2017-12-16_11:04:30/model.ckpt')
-model_path = os.path.join(out_dir, 'observation/171220/raw_2speed/10,50/2017-12-18_11:56:46/model.ckpt')
+#model_path = os.path.join(out_dir, 'observation/171220/raw_2speed/10,30,50/2017-12-18_16:42:39/model.ckpt')
+#model_path = os.path.join(out_dir, 'observation/171220/fft_5speed/2017-12-19_11:45:35/model.ckpt')
+#model_path = os.path.join(out_dir, 'observation/171220/fft_1speed/10,30,50/2017-12-20_15:22:58/model.ckpt')
+#model_path = os.path.join(out_dir, 'observation/171220/afft_5speeds/2017-12-20_20:59:11/model.ckpt')
+model_path = os.path.join(out_dir, 'observation/171220/afft_nspeed/10,30,50/2017-12-21_10:13:12/model.ckpt')
 ####-----------------------------------------------------------------------
 #reader = pywrap_tensorflow.NewCheckpointReader(model_path)
 #var_to_shape_map = reader.get_variable_to_shape_map()
@@ -48,7 +52,7 @@ model_path = os.path.join(out_dir, 'observation/171220/raw_2speed/10,50/2017-12-
 
 def deepnn(x, is_training, keep_prob):
     with tf.name_scope('reshape'):
-        x_image = tf.reshape(x, [-1, 4096,1, 1])
+        x_image = tf.reshape(x, [-1, 2048,1, 1])
 
     with tf.name_scope('conv1'):
         num_feature1 = 32
@@ -103,10 +107,10 @@ def deepnn(x, is_training, keep_prob):
     # is down to 75x50x64 feature maps -- maps this to 256 features.
     with tf.name_scope('fc1'):
         out_size = 4096
-        W_fc1 = weight_variable([16 * num_feature4, out_size], 'W_fc1')
+        W_fc1 = weight_variable([8 * num_feature4, out_size], 'W_fc1')
         b_fc1 = bias_variable([out_size], 'b_fc1')
     
-        h_pool2_flat = tf.reshape(h_pool4, [-1, 16*num_feature4])
+        h_pool2_flat = tf.reshape(h_pool4, [-1, 8*num_feature4])
         BN_fc1 = batch_normalization(
                 tf.matmul(h_pool2_flat, W_fc1) + b_fc1, is_training=is_training)
         h_fc1 = tf.nn.relu(BN_fc1, 'h_fc1')
@@ -173,9 +177,27 @@ def load_test_data(test_speed):
     testset.make(shuffle=True,clean=True)
     return testset
 
+def load_train_data(test_speed):
+    print("loading data...")
+    trainset = ImgDataSet()
+    num_trainfile = 15*len(test_speed)
+    for ii in range(num_trainfile):
+#        data_path = os.path.join(FLAGS.buckets,'input_data_cwt_0-50_'+str(ii+1)+'.pkl')
+        temp = test_speed[ii//15]
+        index = ii%15
+        file_index = int(index//5*25 + (temp/2-index%5))
+        print(file_index,end=',')
+        data_path = os.path.join(data_dir,'input_data_'+str(file_index)+'.pkl')
+        with tf.gfile.GFile(data_path, 'rb') as f:
+            data = pickle.load(f)
+        trainset.join_data(data)
+    trainset.make(shuffle=True,clean=True)
+    print('num of train sample is '+str(trainset.num_examples()))
+    return trainset
+
 def main(): # _ means the last param
     # Create the model
-    x = tf.placeholder(tf.float32, [None, 4096])
+    x = tf.placeholder(tf.float32, [None, 2048])
     y_ = tf.placeholder(tf.float32, [None, 3])
     is_training = tf.placeholder(tf.bool)
     keep_prob = tf.placeholder(tf.float32)
@@ -188,8 +210,10 @@ def main(): # _ means the last param
     accuracy = tf.reduce_mean(correct_prediction)
 
     ### load data
-    test_speed = [40]
+    test_speed = [10]
     testset = load_test_data(test_speed)
+#    testset = load_train_data(test_speed)
+    
     num_of_example = testset.num_examples()
     print('\nnumber of test examples is ', num_of_example)
     
@@ -206,9 +230,10 @@ def main(): # _ means the last param
             test_batch = testset.next_batch(test_step)
             test_feed = {x: test_batch[0], y_: test_batch[1],
                     keep_prob: 1.0, is_training: False}
-            test_accuracy = accuracy.eval(feed_dict=test_feed)
-            if test_accuracy is not 1:
-                print(str(ii),test_batch[1],test_accuracy)
+            test_accuracy, test_out = sess.run([accuracy, tf.argmax(y_conv,1)],
+                                                feed_dict=test_feed)
+            if np.abs(test_accuracy - 1.0) > 0.01:
+                print(str(ii+1),test_batch[1],test_out, test_accuracy)
             correct += test_accuracy
             
         print('accuracy is ', correct/count)
